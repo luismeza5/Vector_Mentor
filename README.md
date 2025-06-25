@@ -90,7 +90,7 @@ python main.py --cli
 ## Estructura del Proyecto
 
 ```
-eduamentor_ai/
+vector_mentor/
 ├── main.py                    # Archivo principal
 ├── requirements.txt           # Dependencias
 ├── README.md                 # Este archivo
