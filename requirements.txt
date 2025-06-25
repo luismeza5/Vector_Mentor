@@ -1,0 +1,40 @@
+# Framework principal LangChain (versiones compatibles y probadas)
+langchain==0.2.11
+langchain-core==0.2.23
+langchain-openai==0.1.17
+langchain-community==0.2.10
+langchain-text-splitters==0.2.2
+
+# LangGraph para workflows multiagente
+langgraph==0.1.11
+
+# OpenAI (versión compatible)
+openai==1.37.0
+
+# Base de datos vectorial
+chromadb==0.5.0
+sentence-transformers==2.7.0
+
+# Interfaz de usuario
+streamlit==1.35.0
+streamlit-chat==0.1.1
+
+# Utilidades
+python-dotenv==1.0.1
+pydantic==2.7.3
+pydantic-settings==2.3.0
+pandas==2.2.2
+numpy==1.26.4
+tiktoken==0.7.0
+
+# Logging y testing
+loguru==0.7.2
+pytest==8.2.2
+pytest-asyncio==0.23.7
+
+# Para procesamiento de texto
+pypdf2==3.0.1
+
+# Opcional: para modelos locales
+# transformers==4.41.2
+# torch==2.3.1
