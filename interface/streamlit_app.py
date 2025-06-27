@@ -9,6 +9,7 @@ import os
 import re
 import asyncio
 from utils.math_formatter import format_tutor_response
+from typing import Dict, Any
 # Agregar el directorio raíz al path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
@@ -87,6 +88,15 @@ def initialize_session_state():
         st.session_state.workflow = None
     if 'system_initialized' not in st.session_state:
         st.session_state.system_initialized = False
+    # NUEVO: Seguimiento del progreso del estudiante
+    if 'student_progress' not in st.session_state:
+        st.session_state.student_progress = {
+            "level_history": [],
+            "current_level": 3,
+            "topics_covered": set(),
+            "total_interactions": 0,
+            "trend": "inicial"
+        }
 
 # Función para inicializar el sistema VectorMentor
 @st.cache_resource
@@ -107,52 +117,94 @@ def initialize_vectormentor():
         # Inicializar el workflow asíncronamente
         asyncio.run(workflow.initialize())
         
-        st.success("✅ VectorMentor inicializado correctamente")
+        st.success("VectorMentor inicializado correctamente")
         return workflow
         
     except Exception as e:
         st.error(f"❌ Error inicializando VectorMentor: {e}")
         return None
-
-def clean_math_formatting(text):
-    """Limpia el formato matemático de la respuesta del AI"""
+def display_chat_message(message, is_user=True, assessment=None):
+    """Función mejorada para mostrar mensajes con evaluación automática"""
     import re
     
-    # Convertir LaTeX a formato Streamlit/MathJax
-    # Paréntesis LaTeX a $...$
+    if is_user:
+        st.markdown(f"🧑‍🎓 **Tú:** {message}")
+    else:
+        st.markdown("🤖 **VectorMentor:**")
+        
+        # MOSTRAR EVALUACIÓN AUTOMÁTICA SI EXISTE
+        if assessment and assessment.get("level"):
+            level = assessment["level"]
+            topic = assessment.get("topic", "algebra").replace("_", " ").title()
+            reasoning = assessment.get("reasoning", "")
+            
+            # Mostrar métricas de evaluación
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📊 Nivel Evaluado", f"{level}/5")
+            with col2:
+                st.metric("📚 Tema", topic)
+            with col3:
+                if "adaptation" in assessment:
+                    complexity = assessment["adaptation"].get("complexity", "").replace("_", " ").title()
+                    st.metric("🎯 Complejidad", complexity)
+            
+            # Mostrar explicación de la evaluación
+            if reasoning:
+                st.info(f"🔍 {reasoning}")
+        
+        # APLICAR LIMPIEZA MATEMÁTICA
+        cleaned_message = clean_math_formatting(message)
+        
+        # SEPARAR TEXTO Y MATEMÁTICAS
+        parts = re.split(r'(\$\$[^$]+\$\$|\$[^$]+\$)', cleaned_message)
+        
+        for part in parts:
+            if part.strip():
+                if part.startswith('$$') and part.endswith('$$'):
+                    # Matemática en bloque
+                    latex_content = part[2:-2].strip()
+                    try:
+                        st.latex(latex_content)
+                    except:
+                        st.code(f"Fórmula: {latex_content}")
+                elif part.startswith('$') and part.endswith('$'):
+                    # Matemática en línea - usar markdown con HTML
+                    latex_content = part[1:-1].strip()
+                    try:
+                        st.markdown(f"${latex_content}$", unsafe_allow_html=True)
+                    except:
+                        st.markdown(f"`{latex_content}`")
+                else:
+                    # Texto normal
+                    st.markdown(part)
+    
+    st.markdown("---")
+
+def clean_math_formatting(text):
+    """Versión mejorada de limpieza matemática"""
+    import re
+    
+    # 1. Convertir LaTeX de paréntesis a dólares
     text = re.sub(r'\\\((.*?)\\\)', r'$\1$', text, flags=re.DOTALL)
     text = re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
     
-    # Ya está en $...$ format, mantenerlo
-    # Mejorar matrices
+    # 2. Convertir paréntesis con matemáticas simples
+    text = re.sub(r'\(\s*([A-Z])\s*=\s*\(([^)]+)\)\s*\)', r'$\1 = (\2)$', text)
+    
+    # 3. Arreglar vectores en negrita
+    text = re.sub(r'\\mathbf\{([^}]+)\}', r'\\mathbf{\1}', text)
+    
+    # 4. Limpiar espacios en matemáticas
+    text = re.sub(r'\$\s+', '$', text)
+    text = re.sub(r'\s+\$', '$', text)
+    
+    # 5. Convertir matrices mal formateadas
     text = re.sub(r'\\begin\{pmatrix\}(.*?)\\end\{pmatrix\}', 
-                  r'\\begin{pmatrix}\1\\end{pmatrix}', text, flags=re.DOTALL)
-    
-    # Arreglar formato de matrices simples: separar elementos con &
-    text = re.sub(r'u_1 \\cdot v_1', r'u_1 \cdot v_1', text)
-    text = re.sub(r'u_2 \\cdot v_2', r'u_2 \cdot v_2', text)
-    
-    # Limpiar variables en cursiva
-    text = re.sub(r'\( ([uv]) \)', r'$\1$', text)
-    text = re.sub(r'\( ([uv])_([0-9]) \)', r'$\1_{\2}$', text)
-    
-    # Mejorar subíndices y productos punto
-    text = re.sub(r'([uv])_([0-9])', r'\1_{\2}', text)
-    text = re.sub(r'\\cdot', r'\cdot', text)
-    
-    # Limpiar formato de ecuaciones en líneas independientes
-    text = re.sub(r'\[ ([^]]+) \]', r'$$\1$$', text)
-    
-    # Convertir vectores con paréntesis
-    text = re.sub(r'\( ([uv]) = \(([^)]+)\) \)', r'$\1 = (\2)$', text)
-    
-    # Títulos en negrita 
-    text = re.sub(r'\*\*([^*]+)\*\*', r'**\1**', text)
+                  lambda m: f'\\begin{{pmatrix}}{m.group(1).strip()}\\end{{pmatrix}}', 
+                  text, flags=re.DOTALL)
     
     return text
-
-# REEMPLAZAR las funciones en streamlit_app.py con esta solución robusta:
-# REEMPLAZA COMPLETAMENTE estas funciones en streamlit_app.py:
 
 def format_for_latex_blocks(text):
     """Prepara el texto para usar con st.latex - VERSIÓN FINAL CORREGIDA"""
@@ -304,13 +356,6 @@ def clean_all_latex_aggressive(text):
     
     return text.strip()
 
-def display_chat_message(message, is_user=True):
-    if is_user:
-        st.write(f"🧑‍🎓 Tú: {message}")
-    else:
-        st.write("🤖 VectorMentor:")
-        st.write(message)
-    st.write("---")
 # FUNCIÓN DE PRUEBA específica para tu ejemplo:
 def test_cross_product():
     """Prueba con el ejemplo del producto cruz"""
@@ -420,23 +465,38 @@ def process_user_input(workflow, user_input):
         return _create_error_response(str(e))
 
 def _process_algebra_question(user_input, results):
-    """Procesa preguntas de álgebra lineal usando OpenAI"""
+    """Procesa preguntas de álgebra lineal usando OpenAI CON EVALUACIÓN AUTOMÁTICA"""
     try:
         from openai import OpenAI
         import os
         
         client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         
+        # EVALUACIÓN AUTOMÁTICA DEL NIVEL
+        evaluated_level = evaluate_simple_level(user_input)
+        difficulty_adaptation = get_difficulty_prompt(evaluated_level)
+        response_style = adapt_response_to_level(evaluated_level, "algebra_lineal")
+        
         # Preparar contexto
         context = ""
         if results:
             context = "\n\n".join([doc.page_content for doc in results[:2]])
         
-        # Prompt unificado
+        # Prompt adaptado al nivel evaluado automáticamente
         system_prompt = f"""Eres VectorMentor, un tutor experto en álgebra lineal.
 
 CONTEXTO de la base de conocimientos:
 {context}
+
+EVALUACIÓN AUTOMÁTICA DEL ESTUDIANTE:
+- Nivel detectado: {evaluated_level}/5
+- Adaptación requerida: {difficulty_adaptation}
+- Estilo de respuesta: {response_style['complexity']}
+- Vocabulario: {response_style['vocabulary']}
+- Tipo de ejemplos: {response_style['examples']}
+
+INSTRUCCIONES DE ADAPTACIÓN:
+{difficulty_adaptation}
 
 FORMATO MATEMÁTICO OBLIGATORIO:
 - SIEMPRE usa $...$ para matemáticas
@@ -448,12 +508,13 @@ FORMATO MATEMÁTICO OBLIGATORIO:
 
 REGLAS:
 1. TODA expresión matemática en $...$
-2. Subíndices con llaves: $u_{{1}}$
-3. Matrices bien formateadas con & y \\\\
+2. Adapta la complejidad al nivel {evaluated_level}
+3. Usa el vocabulario apropiado para el nivel
+4. Incluye ejemplos del tipo: {response_style['examples']}
 
-Proporciona explicaciones claras con ejemplos numéricos."""
+Proporciona una explicación adaptada al nivel del estudiante."""
 
-        # Llamada unificada a OpenAI
+        # Llamada a OpenAI con prompt adaptado
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -467,25 +528,54 @@ Proporciona explicaciones claras con ejemplos numéricos."""
         ai_response = response.choices[0].message.content
         ai_response = clean_math_formatting(ai_response)
         
+        # Generar ejercicio de práctica adaptado al nivel
+        practice_exercise = generate_practice_exercise(evaluated_level, user_input)
+        
         return {
             "response": ai_response,
-            "assessment": {"level": 3, "topic": "algebra_lineal"},
-            "practice_exercise": "",
-            "mode": "ai_enhanced"
+            "assessment": {
+                "level": evaluated_level, 
+                "topic": "algebra_lineal",
+                "reasoning": f"Evaluación automática: nivel {evaluated_level} basado en tipo de pregunta",
+                "adaptation": response_style
+            },
+            "practice_exercise": practice_exercise,
+            "mode": "ai_enhanced_with_auto_eval"
         }
         
     except Exception as e:
-        # Fallback al RAG local
+        # Fallback con nivel por defecto
+        print(f"Error en evaluación automática: {e}")
         if results:
             best_doc = results[0]
             return {
                 "response": f"""**📚 Información sobre: "{user_input}"**\n\n{best_doc.page_content}\n\n*Sistema funcionando en modo local*""",
-                "assessment": {"level": 2, "topic": "local_fallback"},
+                "assessment": {"level": 3, "topic": "local_fallback", "reasoning": "Fallback - nivel por defecto"},
                 "practice_exercise": "",
                 "mode": "local_fallback"
             }
         else:
             return _create_error_response(str(e))
+
+def generate_practice_exercise(level: int, user_input: str) -> str:
+    """Genera ejercicio de práctica adaptado al nivel"""
+    
+    level_exercises = {
+        1: "Ejercicio básico: Identifica cuáles de los siguientes son vectores: (2,3), 5, (-1,4,2)",
+        2: "Ejercicio: Calcula la suma de los vectores (1,2) y (3,4)",
+        3: "Ejercicio: Encuentra el producto punto de $\\mathbf{u} = (2,1,3)$ y $\\mathbf{v} = (1,4,2)$",
+        4: "Ejercicio avanzado: Determina si los vectores (1,2,3), (4,5,6) y (7,8,9) son linealmente independientes",
+        5: "Ejercicio experto: Demuestra que el producto cruz es anticonmutativo"
+    }
+    
+    # Adaptar ejercicio al contenido de la pregunta
+    input_lower = user_input.lower()
+    if "vector" in input_lower and level <= 2:
+        return level_exercises.get(level, level_exercises[3])
+    elif "matriz" in input_lower:
+        return f"Ejercicio de matrices (nivel {level}): Practica con operaciones matriciales básicas"
+    else:
+        return level_exercises.get(level, level_exercises[3])
 
 def _process_off_topic_question(user_input):
     """Maneja preguntas no relacionadas con álgebra lineal"""
@@ -519,6 +609,78 @@ Puedo ayudarte con:
         "practice_exercise": "",
         "mode": "error"
     }
+
+def evaluate_simple_level(user_input: str) -> int:
+    """Evaluación automática simple basada en palabras clave"""
+    input_lower = user_input.lower()
+    
+    # Nivel 1: Preguntas muy básicas
+    if any(word in input_lower for word in ["qué es", "definición", "define", "concepto", "significa"]):
+        return 1
+    
+    # Nivel 5: Preguntas avanzadas
+    elif any(word in input_lower for word in ["demostrar", "probar", "eigenvalor", "diagonalizar", "transformación lineal"]):
+        return 5
+    
+    # Nivel 4: Preguntas complejas
+    elif any(word in input_lower for word in ["transformación", "inversa", "rango", "nulidad", "determinante"]):
+        return 4
+    
+    # Nivel 2: Preguntas básicas con cálculo
+    elif any(word in input_lower for word in ["calcular", "resolver", "encontrar", "ejemplo", "pasos"]):
+        return 2
+    
+    # Nivel 3: Intermedio por defecto
+    else:
+        return 3
+
+def get_difficulty_prompt(level: int) -> str:
+    """Obtiene prompt de adaptación según nivel"""
+    prompts = {
+        1: "Usa vocabulario muy simple, explica conceptos básicos paso a paso con analogías cotidianas",
+        2: "Incluye ejemplos concretos y cálculos básicos paso a paso",
+        3: "Nivel intermedio, incluye aplicaciones y ejemplos prácticos",
+        4: "Nivel avanzado, usa terminología técnica y conceptos complejos",
+        5: "Nivel experto, incluye teoría profunda y demostraciones matemáticas"
+    }
+    return prompts.get(level, prompts[3])
+
+def adapt_response_to_level(level: int, topic: str) -> Dict[str, str]:
+    """Adapta el estilo de respuesta según el nivel"""
+    adaptations = {
+        1: {
+            "complexity": "muy_basico",
+            "vocabulary": "cotidiano_y_simple",
+            "examples": "visuales_y_concretos",
+            "detail": "paso_a_paso_detallado"
+        },
+        2: {
+            "complexity": "basico",
+            "vocabulary": "matematico_simple",
+            "examples": "numericos_basicos",
+            "detail": "explicacion_clara"
+        },
+        3: {
+            "complexity": "intermedio",
+            "vocabulary": "matematico_estandar",
+            "examples": "aplicaciones_practicas",
+            "detail": "balance_teoria_practica"
+        },
+        4: {
+            "complexity": "avanzado",
+            "vocabulary": "tecnico_especializado",
+            "examples": "casos_complejos",
+            "detail": "enfoque_conceptual"
+        },
+        5: {
+            "complexity": "muy_avanzado",
+            "vocabulary": "altamente_especializado",
+            "examples": "abstractos_y_teoricos",
+            "detail": "demostraciones_rigurosas"
+        }
+    }
+    
+    return adaptations.get(level, adaptations[3])
 
 # Función principal de la interfaz
 def main():
@@ -560,17 +722,27 @@ def main():
                 """, unsafe_allow_html=True)
                 
                 # Progreso del estudiante
-                if stats['student_progress']['total_interactions'] > 0:
-                    progress = stats['student_progress']
-                    st.markdown("### 📈 Tu Progreso")
-                    st.markdown(f"""
-                    <div class="stats-box">
-                    <strong>Nivel actual:</strong> {progress['current_level']}/5<br>
-                    <strong>Nivel promedio:</strong> {progress['average_level']:.1f}<br>
-                    <strong>Tema principal:</strong> {progress['most_studied_topic']}<br>
-                    <strong>Tendencia:</strong> {progress['progress_trend']}
-                    </div>
-                    """, unsafe_allow_html=True)
+
+                if st.session_state.student_progress['total_interactions'] > 0:
+                    progress = st.session_state.student_progress
+                    
+                    # Calcular promedio real
+                    avg_level = sum(progress['level_history']) / len(progress['level_history']) if progress['level_history'] else 3.0
+                    
+                    st.markdown("### 📈 Tu Progreso Real")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.metric("Nivel Actual", f"{progress['current_level']}/5")
+                        st.metric("Interacciones", progress['total_interactions'])
+                    
+                    with col2:
+                        st.metric("Nivel Promedio", f"{avg_level:.1f}")
+                        st.metric("Tendencia", progress['trend'].title())
+                    
+                    # Gráfico simple de progreso
+                    if len(progress['level_history']) > 1:
+                        st.line_chart(progress['level_history'])
             except Exception as e:
                 st.info(f"Estadísticas no disponibles: {e}")
         else:
@@ -609,7 +781,7 @@ def main():
     if st.session_state.conversation_history:
         for entry in st.session_state.conversation_history:
             display_chat_message(entry["user_input"], is_user=True)
-            display_chat_message(entry["response"], is_user=False)
+            display_chat_message(entry["response"], is_user=False, assessment=entry.get("assessment"))
             
             # Mostrar ejercicio de práctica si existe
             if entry.get("practice_exercise"):

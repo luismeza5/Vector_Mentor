@@ -9,7 +9,7 @@ from config.settings import settings
 # Importar Chroma desde el paquete correcto para evitar warnings
 try:
     from langchain_chroma import Chroma
-    print("✅ Usando langchain-chroma actualizado")
+    print("Usando langchain-chroma")
 except ImportError:
     from langchain_community.vectorstores import Chroma
     print("⚠️ Usando langchain_community.vectorstores (deprecado)")
@@ -35,18 +35,18 @@ class VectorStoreManager:
             # Intentar cargar base existente
             chroma_db_path = os.path.join(self.persist_directory, "chroma.sqlite3")
             if os.path.exists(chroma_db_path):
-                print("📚 Cargando base vectorial existente...")
+                print("Cargando base vectorial existente...")
                 self.vector_store = Chroma(
                     persist_directory=self.persist_directory,
                     embedding_function=self.embeddings
                 )
                 try:
                     count = self.vector_store._collection.count()
-                    print(f"✅ Base vectorial cargada con {count} documentos")
+                    print(f" Base vectorial cargada con {count} documentos")
                 except:
-                    print("✅ Base vectorial cargada (no se pudo obtener count)")
+                    print(" Base vectorial cargada (no se pudo obtener count)")
             else:
-                print("🆕 Creando nueva base vectorial...")
+                print(" Creando nueva base vectorial...")
                 self.vector_store = Chroma(
                     persist_directory=self.persist_directory,
                     embedding_function=self.embeddings
@@ -58,11 +58,11 @@ class VectorStoreManager:
             print(f"❌ Error inicializando vector store: {e}")
             # Fallback: crear en memoria
             self.vector_store = Chroma(embedding_function=self.embeddings)
-            print("⚠️ Usando vector store en memoria como fallback")
+            print(" Usando vector store en memoria como fallback")
     
     def _add_initial_content(self):
         """Agrega contenido educativo inicial"""
-        print("📖 Agregando contenido educativo inicial...")
+        print(" Agregando contenido educativo inicial...")
         
         initial_documents = [
             # Vectores básicos
@@ -155,7 +155,7 @@ class VectorStoreManager:
         
         # Agregar documentos a la base vectorial
         self.add_documents(initial_documents)
-        print(f"✅ {len(initial_documents)} documentos iniciales agregados")
+        print(f" {len(initial_documents)} documentos iniciales agregados")
     
     def similarity_search(self, query: str, k: int = None, filter_level: int = None) -> List[Document]:
         """Busca documentos similares al query"""
@@ -202,7 +202,7 @@ class VectorStoreManager:
                 self.vector_store.persist()
             except:
                 pass  # persist() puede no estar disponible en todas las versiones
-            print(f"✅ {len(documents)} documentos agregados")
+            print(f" {len(documents)} documentos agregados")
         except Exception as e:
             print(f"❌ Error agregando documentos: {e}")
     
@@ -218,7 +218,7 @@ class VectorStoreManager:
                 self.vector_store.persist()
             except:
                 pass
-            print(f"✅ {len(texts)} textos agregados")
+            print(f" {len(texts)} textos agregados")
         except Exception as e:
             print(f"❌ Error agregando textos: {e}")
     
