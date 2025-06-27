@@ -10,7 +10,7 @@ Sistema de tutoría académica personalizada que utiliza múltiples agentes de I
 - **RAG (Retrieval-Augmented Generation)**: Base de conocimiento vectorial con Chroma
 - **Tutoría Personalizada**: Adaptación al nivel del estudiante
 - **Interfaz Web**: Aplicación interactiva con Streamlit
-- **LangGraph**: Orquestación avanzada del flujo de trabajo.
+- **LangGraph**: Orquestación avanzada del flujo de trabajo
 
 ## Arquitectura
 
