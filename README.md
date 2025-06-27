@@ -1,6 +1,6 @@
-readme_content = '''
 
-# EduMentor AI - Sistema Multiagente con RAG
+
+# VectorMentor- Sistema Multiagente con RAG
 
 Sistema de tutoría académica personalizada que utiliza múltiples agentes de IA para proporcionar una experiencia de aprendizaje adaptativa en álgebra lineal.
 
