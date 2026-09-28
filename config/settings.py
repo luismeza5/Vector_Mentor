@@ -1,4 +1,4 @@
-"""Configuraciones del sistema EduMentor AI"""
+"""Configuraciones del sistema VectorMentor"""
 
 import os
 from typing import Dict, Any
@@ -75,9 +75,6 @@ AGENT_CONFIGS: Dict[str, Dict[str, Any]] = {
 # Instancia global de configuraciones
 settings = Settings()
 
-# Debug: Mostrar longitud de la API key
-print(f"🔑 API Key detectada - Longitud: {len(settings.OPENAI_API_KEY)}")
-if len(settings.OPENAI_API_KEY) > 40:
-    print(f"✅ API Key válida (primeros 10 chars: {settings.OPENAI_API_KEY[:10]})")
-else:
-    print(f"⚠️ API Key parece inválida o incompleta")
+# Avisar si falta la API key, sin imprimir ninguna parte de ella
+if not settings.OPENAI_API_KEY:
+    print("⚠️ OPENAI_API_KEY no está configurada. Crea un archivo .env (ver README).")
